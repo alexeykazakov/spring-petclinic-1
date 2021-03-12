@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: alexeykazakov.azurecr.io
+        username: ${{ secrets.acr_alexeykazakov_username }}
+        password: ${{ secrets.acr_alexeykazakov_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/" -f  "Dockerfile" -t alexeykazakov.azurecr.io/mycluster:${{ github.sha }} --label dockerfile-path=Dockerfile
+        docker push alexeykazakov.azurecr.io/mycluster:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_mycluster_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep new-petclinic | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace new-petclinic`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: new-petclinic
+        container-registry-url: alexeykazakov.azurecr.io
+        container-registry-username: ${{ secrets.acr_alexeykazakov_username }}
+        container-registry-password: ${{ secrets.acr_alexeykazakov_password }}
+        secret-name: myclusterdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: new-petclinic
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          alexeykazakov.azurecr.io/mycluster:${{ github.sha }}
+        imagepullsecrets: |
+          myclusterdockerauth
