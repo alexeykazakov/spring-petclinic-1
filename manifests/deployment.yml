@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "mycluster-d5fc"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "mycluster-d5fc"
+  template:
+    metadata:
+      labels:
+        app: "mycluster-d5fc"
+    spec:
+      containers:
+        - name: "mycluster-d5fc"
+          image: "alexeykazakov.azurecr.io/mycluster"
+          ports:
+          - containerPort: 8080
